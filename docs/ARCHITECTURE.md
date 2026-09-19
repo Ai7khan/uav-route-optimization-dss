@@ -5,8 +5,8 @@ It is the "principles of operation" deliverable required by the brief (§8, §9)
 
 ## 1. Coordinate model
 
-The theatre is a fixed lat/lon bounding box (40–41°N, 44–45°E) discretised into a
-100×100 grid (~1.1 km per cell). Every layer — weather, risk, the optimizer graph —
+The theatre is a fixed lat/lon bounding box (43–44°N, 76.5–77.5°E — the Almaty
+region of Kazakhstan) discretised into a 100×100 grid (~1.1 km per cell). Every layer — weather, risk, the optimizer graph —
 shares this grid (`backend/config.py: GridSpec`). Helpers convert lat/lon ↔ cell and
 compute planar inter-cell distances in km.
 

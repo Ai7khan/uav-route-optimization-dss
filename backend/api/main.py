@@ -26,6 +26,7 @@ from pydantic import BaseModel
 FRONTEND = os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "index.html")
 
 from backend.api import security, session
+from backend.config import GRID
 from backend.schemas import Weights
 from backend.sim.scenario import PRESETS
 
@@ -73,10 +74,12 @@ def metrics():
 # --- missions ---------------------------------------------------------------
 class MissionReq(BaseModel):
     scenario_id: str = "sam_popup"
-    start_lat: float = 40.05
-    start_lon: float = 44.05
-    goal_lat: float = 40.95
-    goal_lon: float = 44.95
+    # Defaults null -> filled from the theatre box (near-corner start/goal),
+    # so moving the bounding box never leaves the mission outside the map.
+    start_lat: float | None = None
+    start_lon: float | None = None
+    goal_lat: float | None = None
+    goal_lon: float | None = None
     alt_m: float = 500.0
     weights: Weights = Weights()
     use_forecast: bool = True
@@ -86,10 +89,14 @@ class MissionReq(BaseModel):
 def create_mission(req: MissionReq, user: str = Depends(require_user)):
     if req.scenario_id not in PRESETS:
         raise HTTPException(400, f"unknown scenario_id; choose from {PRESETS}")
+    dstart = GRID.frac_to_latlon(0.05, 0.05)
+    dgoal = GRID.frac_to_latlon(0.95, 0.95)
+    start = (req.start_lat if req.start_lat is not None else dstart[0],
+             req.start_lon if req.start_lon is not None else dstart[1])
+    goal = (req.goal_lat if req.goal_lat is not None else dgoal[0],
+            req.goal_lon if req.goal_lon is not None else dgoal[1])
     m = session.create_mission(
-        scenario_id=req.scenario_id,
-        start=(req.start_lat, req.start_lon),
-        goal=(req.goal_lat, req.goal_lon),
+        scenario_id=req.scenario_id, start=start, goal=goal,
         weights=req.weights, alt_m=req.alt_m, use_forecast=req.use_forecast)
     return m.state()
 

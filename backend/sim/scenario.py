@@ -28,18 +28,20 @@ class Scenario:
         self.tick = 0
 
 
-def _site(id_, lat, lon, t: ADType, rng, power=1.0, schedule=None) -> ADSite:
+def _site(id_, fr_lat, fr_lon, t: ADType, rng, power=1.0, schedule=None) -> ADSite:
+    """Create a site from a fractional position in the theatre box (0..1)."""
+    lat, lon = GRID.frac_to_latlon(fr_lat, fr_lon)
     return ADSite(id=id_, lat=lat, lon=lon, ad_type=t, max_range_km=rng,
                   power=power, schedule=schedule or [])
 
 
 def build_scenario(scenario_id: str) -> Scenario:
-    """Factory for the demo presets."""
+    """Factory for the demo presets. Site positions are fractions of the box."""
     if scenario_id == "clear":
         weather = WeatherField(seed=1, base_wind=(15.0, 5.0), storminess=0.05)
         sites = [
-            _site("SAM-Alpha", 40.35, 44.30, ADType.medium_range, 40.0, power=1.0),
-            _site("SAM-Bravo", 40.70, 44.75, ADType.short_range, 15.0, power=1.0),
+            _site("SAM-Alpha", 0.35, 0.30, ADType.medium_range, 40.0, power=1.0),
+            _site("SAM-Bravo", 0.70, 0.75, ADType.short_range, 15.0, power=1.0),
         ]
         return Scenario(scenario_id, weather, sites)
 
@@ -47,8 +49,8 @@ def build_scenario(scenario_id: str) -> Scenario:
         # Strong wind pushing a precipitation front across the map.
         weather = WeatherField(seed=7, base_wind=(55.0, 20.0), storminess=0.75)
         sites = [
-            _site("SAM-Alpha", 40.30, 44.40, ADType.medium_range, 40.0, power=1.0),
-            _site("SAM-Charlie", 40.55, 44.20, ADType.long_range, 120.0, power=0.8),
+            _site("SAM-Alpha", 0.30, 0.40, ADType.medium_range, 40.0, power=1.0),
+            _site("SAM-Charlie", 0.55, 0.20, ADType.long_range, 120.0, power=0.8),
         ]
         return Scenario(scenario_id, weather, sites)
 
@@ -57,8 +59,8 @@ def build_scenario(scenario_id: str) -> Scenario:
         # route -> forces a replan around it, but leaves an avoidable corridor.
         weather = WeatherField(seed=3, base_wind=(20.0, 8.0), storminess=0.25)
         sites = [
-            _site("SAM-Alpha", 40.20, 44.25, ADType.short_range, 15.0, power=1.0),
-            _site("SAM-Delta", 40.50, 44.50, ADType.medium_range, 38.0, power=1.1,
+            _site("SAM-Alpha", 0.20, 0.25, ADType.short_range, 15.0, power=1.0),
+            _site("SAM-Delta", 0.50, 0.50, ADType.medium_range, 38.0, power=1.1,
                   schedule=[(6, 999)]),
         ]
         return Scenario(scenario_id, weather, sites)

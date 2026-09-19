@@ -135,7 +135,8 @@ function H(){ return {"Content-Type":"application/json","Authorization":"Bearer 
 function weights(){ return {safety:+safety.value, time:+time.value, fuel:+fuel.value}; }
 
 // --- map ---
-const map = L.map("map",{zoomControl:true}).setView([40.5,44.5],10);
+const map = L.map("map",{zoomControl:true}).setView([43.5,77.0],10);
+let _fitted=false;
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
   {attribution:"© OpenStreetMap",maxZoom:19}).addTo(map);
 
@@ -209,6 +210,7 @@ function markers(st){
 
 function render(st){
   MID=st.mission_id;
+  if(!_fitted){ map.fitBounds([[st.bounds.lat_min,st.bounds.lon_min],[st.bounds.lat_max,st.bounds.lon_max]]); _fitted=true; }
   drawDanger(st.danger,st.bounds);
   drawWind(st.wind_u,st.wind_v,st.bounds);
   drawRings(st.threat_rings);

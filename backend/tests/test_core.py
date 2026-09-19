@@ -11,8 +11,8 @@ from backend.optimizer.dstar_lite import DStarLite, changed_cells
 from backend.optimizer.planner import AdaptivePlanner
 from backend.schemas import Weights
 
-START = GRID.latlon_to_cell(40.05, 44.05)
-GOAL = GRID.latlon_to_cell(40.95, 44.95)
+START = GRID.latlon_to_cell(*GRID.frac_to_latlon(0.05, 0.05))
+GOAL = GRID.latlon_to_cell(*GRID.frac_to_latlon(0.95, 0.95))
 W = Weights()
 
 
@@ -24,11 +24,12 @@ def _field(sid, tick=0, alt=500.0):
 
 
 def test_grid_roundtrip():
-    for lat, lon in [(40.05, 44.05), (40.5, 44.5), (40.95, 44.95)]:
+    for fr in [(0.05, 0.05), (0.5, 0.5), (0.95, 0.95)]:
+        lat, lon = GRID.frac_to_latlon(*fr)
         r, c = GRID.latlon_to_cell(lat, lon)
         blat, blon = GRID.cell_to_latlon(r, c)
         assert abs(blat - lat) < GRID.cell_km / 111 + 1e-6
-        assert abs(blon - lon) < GRID.cell_km / 85 + 1e-6
+        assert abs(blon - lon) < GRID.cell_km / 80 + 1e-6
 
 
 def test_presets_build():

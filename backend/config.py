@@ -12,16 +12,17 @@ from dataclasses import dataclass
 # --- Geographic domain (fictional area of operations) -----------------------
 # Roughly 1 degree of latitude ~= 111 km. We use a 1 deg x 1 deg box so that
 # with GRID_N = 100 each cell is ~1.1 km across (fine enough for a demo).
-LAT_MIN = 40.0
-LAT_MAX = 41.0
-LON_MIN = 44.0
-LON_MAX = 45.0
+# Theatre: Almaty region, south-east Kazakhstan.
+LAT_MIN = 43.0
+LAT_MAX = 44.0
+LON_MIN = 76.5
+LON_MAX = 77.5
 
 GRID_N = 100  # grid resolution (GRID_N x GRID_N cells)
 
 # Approx km per degree at this latitude (used for distances / speeds).
 KM_PER_DEG_LAT = 111.0
-KM_PER_DEG_LON = 111.0 * 0.766  # cos(40 deg)
+KM_PER_DEG_LON = 111.0 * 0.7254  # cos(43.5 deg)
 
 
 @dataclass(frozen=True)
@@ -49,6 +50,16 @@ class GridSpec:
         """Map (row, col) to the lat/lon of the cell centre."""
         lat = self.lat_min + (row + 0.5) / self.n * (self.lat_max - self.lat_min)
         lon = self.lon_min + (col + 0.5) / self.n * (self.lon_max - self.lon_min)
+        return lat, lon
+
+    def frac_to_latlon(self, fr_lat: float, fr_lon: float) -> tuple[float, float]:
+        """Map fractional position in the box (0..1, 0..1) to lat/lon.
+
+        Keeps scenarios and defaults independent of the theatre's absolute
+        coordinates, so moving the bounding box never strands hardcoded points.
+        """
+        lat = self.lat_min + fr_lat * (self.lat_max - self.lat_min)
+        lon = self.lon_min + fr_lon * (self.lon_max - self.lon_min)
         return lat, lon
 
     def cell_distance_km(self, a: tuple[int, int], b: tuple[int, int]) -> float:
