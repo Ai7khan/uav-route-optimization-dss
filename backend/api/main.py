@@ -19,8 +19,11 @@ import os
 
 from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
+
+FRONTEND = os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "index.html")
 
 from backend.api import security, session
 from backend.schemas import Weights
@@ -143,3 +146,8 @@ async def ws(websocket: WebSocket, mission_id: str, token: str = ""):
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/")
+def ui():
+    return FileResponse(FRONTEND)

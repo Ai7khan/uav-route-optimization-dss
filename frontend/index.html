@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>UAV Route DSS</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  :root{
+    --bg:#0b1220; --panel:#121b2e; --panel2:#0e1626; --line:#22304d;
+    --text:#e6edf7; --muted:#8ba0c0; --accent:#4da3ff; --ok:#33d17a;
+    --warn:#f5b942; --bad:#ff5d5d; --safe:#33d17a;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text)}
+  #app{display:grid;grid-template-columns:340px 1fr;height:100vh}
+  #side{background:var(--panel);border-right:1px solid var(--line);overflow-y:auto;padding:16px}
+  #map{height:100vh}
+  h1{font-size:16px;margin:0 0 2px;letter-spacing:.3px}
+  .sub{color:var(--muted);font-size:11px;margin-bottom:14px}
+  .card{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:12px}
+  .card h2{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin:0 0 10px}
+  label{font-size:12px;color:var(--muted);display:block;margin:8px 0 3px}
+  select,input[type=range]{width:100%}
+  select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px}
+  .slider-row{display:flex;justify-content:space-between;font-size:12px}
+  .slider-row b{color:var(--accent)}
+  button{background:var(--accent);color:#04122a;border:0;border-radius:7px;padding:9px 12px;font-weight:600;cursor:pointer;font-size:13px}
+  button.ghost{background:transparent;color:var(--text);border:1px solid var(--line)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  .btn-row{display:flex;gap:8px;margin-top:6px}
+  .btn-row button{flex:1}
+  .toggle{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text);margin-top:8px}
+  .metric{display:flex;justify-content:space-between;font-size:13px;padding:3px 0}
+  .metric span:first-child{color:var(--muted)}
+  .pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
+  .pill.inc{background:#123a2a;color:var(--ok)}
+  .pill.full{background:#3a2a12;color:var(--warn)}
+  .legend{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);margin-top:6px}
+  .ramp{height:8px;flex:1;border-radius:4px;background:linear-gradient(90deg,#1f9d55,#f5b942,#ff5d5d)}
+  .threat{font-size:12px;display:flex;justify-content:space-between;padding:2px 0}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
+  .banner{background:#3a1416;border:1px solid #7a2a2e;color:#ffb3b3;padding:8px 10px;border-radius:8px;font-size:12px;margin-bottom:12px;display:none}
+  .route-legend{font-size:11px;color:var(--muted);line-height:1.7}
+  .route-legend i{display:inline-block;width:18px;height:3px;vertical-align:middle;margin-right:6px}
+  small.mono{font-family:ui-monospace,monospace;color:var(--muted)}
+  /* Darken the key-free OSM base tiles to match the command-center theme.
+     Only the tile pane is filtered; route/danger overlays live in the overlay pane. */
+  .leaflet-tile-pane{filter:invert(1) hue-rotate(185deg) brightness(0.92) contrast(0.9) saturate(0.7)}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="side">
+    <h1>UAV Route Optimization DSS</h1>
+    <div class="sub">Decision support under changing weather &amp; air-defense activity</div>
+    <div id="banner" class="banner"></div>
+
+    <div class="card">
+      <h2>Mission</h2>
+      <label>Scenario</label>
+      <select id="scenario">
+        <option value="sam_popup">SAM pop-up (mid-mission threat)</option>
+        <option value="storm_front">Storm front (moving weather)</option>
+        <option value="clear">Clear conditions</option>
+      </select>
+      <label class="toggle"><input type="checkbox" id="forecast" checked /> Use ML forecast (plan ahead)</label>
+      <div class="btn-row"><button id="start">Start mission</button></div>
+    </div>
+
+    <div class="card">
+      <h2>Priorities</h2>
+      <div class="slider-row"><label>Safety</label><b id="wS">1.0</b></div>
+      <input type="range" id="safety" min="0" max="3" step="0.1" value="1.0" />
+      <div class="slider-row"><label>Speed</label><b id="wT">0.4</b></div>
+      <input type="range" id="time" min="0" max="1.5" step="0.05" value="0.4" />
+      <div class="slider-row"><label>Fuel economy</label><b id="wF">0.3</b></div>
+      <input type="range" id="fuel" min="0" max="1.5" step="0.05" value="0.3" />
+      <div class="btn-row"><button class="ghost" id="replan" disabled>Re-plan</button></div>
+    </div>
+
+    <div class="card">
+      <h2>Clock</h2>
+      <div class="metric"><span>Tick</span><span id="tick">—</span></div>
+      <div class="metric"><span>Mission time</span><span id="mtime">—</span></div>
+      <div class="btn-row">
+        <button id="step" disabled>Step +2 min</button>
+        <button class="ghost" id="play" disabled>▶ Play</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Recommended route</h2>
+      <div class="metric"><span>Flight time</span><span id="rTime">—</span></div>
+      <div class="metric"><span>Fuel</span><span id="rFuel">—</span></div>
+      <div class="metric"><span>Max detection risk</span><span id="rMax">—</span></div>
+      <div class="metric"><span>Mean detection risk</span><span id="rMean">—</span></div>
+      <div class="metric"><span>Replan</span><span id="strategy">—</span></div>
+      <div class="route-legend" style="margin-top:8px">
+        <i style="background:#4da3ff"></i>Optimal &nbsp; <i style="background:#33d17a;border-bottom:2px dashed #33d17a;height:0"></i>Safest &nbsp; <i style="background:#f5b942;border-bottom:2px dashed #f5b942;height:0"></i>Fastest
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Environment</h2>
+      <div class="metric"><span>Mean wind</span><span id="wind">—</span></div>
+      <div class="metric"><span>Mean visibility</span><span id="vis">—</span></div>
+      <div class="legend"><span>safe</span><div class="ramp"></div><span>danger</span></div>
+    </div>
+
+    <div class="card">
+      <h2>Air-defense (ML forecast)</h2>
+      <div id="threats"><small class="mono">start a mission…</small></div>
+    </div>
+
+    <div class="card">
+      <h2>Model accuracy</h2>
+      <div id="mlmetrics"><small class="mono">loading…</small></div>
+    </div>
+  </div>
+  <div id="map"></div>
+</div>
+
+<script>
+const API = "";           // same origin
+let TOKEN = null, MID = null, playTimer = null;
+
+async function login(){
+  const r = await fetch(API+"/login",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({username:"operator",password:"uav-demo"})});
+  TOKEN = (await r.json()).token;
+}
+function H(){ return {"Content-Type":"application/json","Authorization":"Bearer "+TOKEN}; }
+function weights(){ return {safety:+safety.value, time:+time.value, fuel:+fuel.value}; }
+
+// --- map ---
+const map = L.map("map",{zoomControl:true}).setView([40.5,44.5],10);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+  {attribution:"© OpenStreetMap",maxZoom:19}).addTo(map);
+
+let dangerOverlay=null, ringLayer=L.layerGroup().addTo(map), routeLayer=L.layerGroup().addTo(map),
+    markerLayer=L.layerGroup().addTo(map), windLayer=L.layerGroup().addTo(map);
+
+function rampColor(v){ // 0 green -> .5 amber -> 1 red
+  v=Math.max(0,Math.min(1,v));
+  let r,g,b;
+  if(v<0.5){ const t=v/0.5; r=Math.round(31+t*(245-31)); g=Math.round(157+t*(185-157)); b=Math.round(85+t*(66-85)); }
+  else { const t=(v-0.5)/0.5; r=Math.round(245+t*(255-245)); g=Math.round(185+t*(93-185)); b=Math.round(66+t*(93-66)); }
+  return [r,g,b];
+}
+function drawDanger(grid,b){
+  const n=grid.length, m=grid[0].length;
+  const cv=document.createElement("canvas"); cv.width=m; cv.height=n;
+  const ctx=cv.getContext("2d"); const img=ctx.createImageData(m,n);
+  for(let i=0;i<n;i++)for(let j=0;j<m;j++){
+    // flip rows: grid row 0 = lat_min (south) -> canvas bottom
+    const v=grid[n-1-i][j]; const [r,g,bl]=rampColor(v);
+    const idx=(i*m+j)*4; img.data[idx]=r; img.data[idx+1]=g; img.data[idx+2]=bl;
+    img.data[idx+3]=Math.round(Math.min(0.72,v*0.95)*255);
+  }
+  ctx.putImageData(img,0,0);
+  const bounds=[[b.lat_min,b.lon_min],[b.lat_max,b.lon_max]];
+  if(dangerOverlay) map.removeLayer(dangerOverlay);
+  dangerOverlay=L.imageOverlay(cv.toDataURL(),bounds,{opacity:1,interactive:false}).addTo(map);
+}
+function drawRings(rings){
+  ringLayer.clearLayers();
+  rings.forEach(r=>{
+    const col = r.active ? "#ff5d5d" : "#5a6b8a";
+    L.circle([r.lat,r.lon],{radius:r.range_km*1000,color:col,weight:1.5,
+      fillColor:col,fillOpacity:r.active?0.10:0.04,dashArray:r.active?null:"4 4"}).addTo(ringLayer);
+    L.circleMarker([r.lat,r.lon],{radius:5,color:col,fillColor:col,fillOpacity:1}).addTo(ringLayer)
+      .bindTooltip(`${r.id} · ${r.ad_type} · ${r.range_km}km${r.active?" · ACTIVE":""}`);
+  });
+}
+function drawRoute(route,color,dashed){
+  if(!route) return;
+  const segs=route.segments;
+  if(dashed){
+    L.polyline(segs.map(s=>[s.lat,s.lon]),{color,weight:2,opacity:0.6,dashArray:"6 6"}).addTo(routeLayer);
+    return;
+  }
+  for(let i=1;i<segs.length;i++){ // color optimal by per-segment risk
+    const risk=segs[i].risk; const [r,g,b]=rampColor(risk);
+    L.polyline([[segs[i-1].lat,segs[i-1].lon],[segs[i].lat,segs[i].lon]],
+      {color:`rgb(${r},${g},${b})`,weight:5,opacity:0.95}).addTo(routeLayer);
+  }
+}
+function drawWind(wu,wv,b){
+  windLayer.clearLayers();
+  const n=wu.length,m=wu[0].length;
+  for(let i=0;i<n;i++)for(let j=0;j<m;j++){
+    const lat=b.lat_min+(i+0.5)/n*(b.lat_max-b.lat_min);
+    const lon=b.lon_min+(j+0.5)/m*(b.lon_max-b.lon_min);
+    const u=wu[i][j],v=wv[i][j]; const sp=Math.hypot(u,v); if(sp<1)continue;
+    const scale=0.0016; const lat2=lat+v*scale, lon2=lon+u*scale;
+    L.polyline([[lat,lon],[lat2,lon2]],{color:"#7fb3ff",weight:1,opacity:0.35}).addTo(windLayer);
+  }
+}
+function markers(st){
+  markerLayer.clearLayers();
+  const ic=(c)=>L.divIcon({className:"",html:`<div style="width:14px;height:14px;border-radius:50%;background:${c};border:2px solid #fff;box-shadow:0 0 6px ${c}"></div>`,iconSize:[14,14]});
+  L.marker([st.start.lat,st.start.lon],{icon:ic("#33d17a")}).addTo(markerLayer).bindTooltip("Start");
+  L.marker([st.goal.lat,st.goal.lon],{icon:ic("#4da3ff")}).addTo(markerLayer).bindTooltip("Objective");
+  const uav=L.divIcon({className:"",html:`<div style="font-size:20px;filter:drop-shadow(0 0 4px #fff)">✈️</div>`,iconSize:[20,20]});
+  L.marker([st.uav.lat,st.uav.lon],{icon:uav}).addTo(markerLayer).bindTooltip("UAV");
+}
+
+function render(st){
+  MID=st.mission_id;
+  drawDanger(st.danger,st.bounds);
+  drawWind(st.wind_u,st.wind_v,st.bounds);
+  drawRings(st.threat_rings);
+  routeLayer.clearLayers();
+  st.alternatives.forEach(a=>drawRoute(a, a.label==="safest"?"#33d17a":"#f5b942", true));
+  drawRoute(st.route,"#4da3ff",false);
+  markers(st);
+
+  tick.textContent=st.tick;
+  mtime.textContent=st.time_min+" min";
+  if(st.route){
+    rTime.textContent=st.route.total_time_min.toFixed(1)+" min";
+    rFuel.textContent=st.route.total_fuel.toFixed(1)+" u";
+    rMax.textContent=(st.route.max_risk*100).toFixed(0)+"%";
+    rMean.textContent=(st.route.mean_risk*100).toFixed(0)+"%";
+  }
+  const ps=st.planner_stats||{};
+  const inc=(ps.strategy||"").startsWith("incremental");
+  strategy.innerHTML=`<span class="pill ${inc?'inc':'full'}">${ps.strategy||'—'}</span> <small class="mono">${(ps.ms||0).toFixed(1)}ms</small>`;
+  wind.textContent=st.wind_mean_kmh+" km/h";
+  vis.textContent=st.visibility_mean_km+" km";
+
+  threats.innerHTML=st.ad_predictions.map(a=>{
+    const c=a.active_now?"#ff5d5d":(a.p_active_soon>=0.5?"#f5b942":"#5a6b8a");
+    return `<div class="threat"><span><span class="dot" style="background:${c}"></span>${a.id}</span>
+      <span>${a.active_now?"ACTIVE":"idle"} · P(soon) ${(a.p_active_soon*100).toFixed(0)}%</span></div>`;
+  }).join("");
+
+  // banner on a full replan event
+  if(ps.strategy==="full_replan(A*)"){
+    banner.style.display="block";
+    banner.textContent=`⚠ Major threat change (${ps.changed_cells} cells) — full route re-planned in ${(ps.ms).toFixed(0)}ms.`;
+    setTimeout(()=>banner.style.display="none",4000);
+  }
+}
+
+async function loadMetrics(){
+  const m=await (await fetch(API+"/metrics")).json();
+  if(!m.weather_nowcast||m.weather_nowcast.error){ mlmetrics.innerHTML='<small class="mono">models not trained</small>'; return; }
+  const w=m.weather_nowcast, a=m.ad_predictor;
+  mlmetrics.innerHTML=`
+    <div class="metric"><span>Weather nowcast (${w.horizon_min}min)</span><span>${w.skill_vs_persistence_pct}% ↓RMSE</span></div>
+    <div class="metric"><span>AD activity ${a.primary_horizon}</span><span>AUC ${a.auc}</span></div>
+    <div class="metric"><span>AD vs persistence</span><span>+${a.gain_pts} pts</span></div>`;
+}
+
+async function startMission(){
+  if(playTimer){clearInterval(playTimer);playTimer=null;play.textContent="▶ Play";}
+  const body={scenario_id:scenario.value,use_forecast:forecast.checked,weights:weights()};
+  const st=await (await fetch(API+"/mission",{method:"POST",headers:H(),body:JSON.stringify(body)})).json();
+  render(st);
+  [step,play,replan].forEach(b=>b.disabled=false);
+}
+async function doStep(){
+  const st=await (await fetch(`${API}/mission/${MID}/step`,{method:"POST",headers:H()})).json();
+  render(st);
+}
+async function doReplan(){
+  const st=await (await fetch(`${API}/mission/${MID}/replan`,{method:"POST",headers:H(),
+    body:JSON.stringify({weights:weights()})})).json();
+  render(st);
+}
+function togglePlay(){
+  if(playTimer){clearInterval(playTimer);playTimer=null;play.textContent="▶ Play";}
+  else{play.textContent="⏸ Pause";playTimer=setInterval(doStep,1400);}
+}
+
+safety.oninput=()=>wS.textContent=(+safety.value).toFixed(1);
+time.oninput=()=>wT.textContent=(+time.value).toFixed(2);
+fuel.oninput=()=>wF.textContent=(+fuel.value).toFixed(2);
+start.onclick=startMission; step.onclick=doStep; play.onclick=togglePlay; replan.onclick=doReplan;
+
+(async()=>{ await login(); await loadMetrics(); })();
+</script>
+</body>
+</html>
