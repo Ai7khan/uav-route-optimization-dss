@@ -11,7 +11,7 @@ import pickle
 
 import numpy as np
 
-from backend.ml.dataset import ad_dataset, featurize_history
+from backend.ml.dataset import LAGS, ad_dataset, featurize_history
 
 MODEL_PATH = os.path.join("data", "ad_predictor.pkl")
 
@@ -71,7 +71,7 @@ def load_model():
     return _loaded["model"]
 
 
-def predict_activity(history: np.ndarray, t: int, j: int, window: int = 8) -> float:
+def predict_activity(history: np.ndarray, t: int, j: int, window: int = LAGS) -> float:
     """P(site j active at t+1) given activity history matrix (T, n_sites)."""
     model = load_model()
     feats = np.array([featurize_history(history, t, j, window)], dtype=np.float32)
