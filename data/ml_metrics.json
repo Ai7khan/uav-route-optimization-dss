@@ -1,0 +1,43 @@
+{
+  "ad_predictor": {
+    "primary_horizon": "t+3 (6 min)",
+    "accuracy": 0.726,
+    "auc": 0.792,
+    "persistence_accuracy": 0.504,
+    "gain_pts": 22.3,
+    "by_horizon": {
+      "t+1": {
+        "accuracy": 0.792,
+        "auc": 0.862,
+        "persistence_accuracy": 0.777,
+        "gain_pts": 1.5
+      },
+      "t+2": {
+        "accuracy": 0.72,
+        "auc": 0.798,
+        "persistence_accuracy": 0.626,
+        "gain_pts": 9.4
+      },
+      "t+3": {
+        "accuracy": 0.726,
+        "auc": 0.792,
+        "persistence_accuracy": 0.504,
+        "gain_pts": 22.3
+      }
+    },
+    "n_train": 19305,
+    "n_test": 6435,
+    "train_seconds": 5.9
+  },
+  "weather_nowcast": {
+    "rmse_model": 0.029398461803793907,
+    "rmse_persistence": 0.04854639619588852,
+    "mae_model": 0.0208739023655653,
+    "skill_vs_persistence_pct": 39.4,
+    "horizon_ticks": 3,
+    "horizon_min": 6,
+    "n_train": 624,
+    "n_val": 156,
+    "train_seconds": 16.7
+  }
+}

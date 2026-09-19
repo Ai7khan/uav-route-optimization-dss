@@ -4,6 +4,7 @@ __pycache__/
 .pytest_cache/
 *.pt
 *.pth
+data/*.pkl
 node_modules/
 dist/
 data/*.enc
