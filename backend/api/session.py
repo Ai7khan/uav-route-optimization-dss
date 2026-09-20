@@ -10,7 +10,7 @@ from backend.config import GRID, TIME_STEP_MIN
 from backend.ml import ad_predictor
 from backend.ml.forecast import forecast_weather
 from backend.optimizer.planner3d import (DEFAULT_AGLS, AdaptivePlanner3D,
-                                         CostField3D, plan3d)
+                                         CostField3D, pareto_front, plan3d)
 from backend.schemas import Route, Weights
 from backend.sim.airdefense import site_is_active, threat_rings
 from backend.sim.scenario import Scenario, build_scenario
@@ -151,6 +151,9 @@ class Mission:
                       if t >= 3 else float(active))
             out.append({"id": s.id, "active_now": active, "p_active_soon": round(p_next, 2)})
         return out
+
+    def pareto(self):
+        return pareto_front(self.field, self.start, self.goal_rc)
 
     def _route_altitudes(self):
         if not self.route:

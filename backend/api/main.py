@@ -114,6 +114,11 @@ def mission_state(mission_id: str, user: str = Depends(require_user)):
     return _mission_or_404(mission_id).state()
 
 
+@app.get("/mission/{mission_id}/pareto")
+def mission_pareto(mission_id: str, user: str = Depends(require_user)):
+    return {"front": _mission_or_404(mission_id).pareto()}
+
+
 @app.post("/mission/{mission_id}/step")
 def mission_step(mission_id: str, user: str = Depends(require_user)):
     return _mission_or_404(mission_id).step()

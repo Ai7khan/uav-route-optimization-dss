@@ -94,13 +94,20 @@
       <h2>Recommended route</h2>
       <div class="metric"><span>Flight time</span><span id="rTime">—</span></div>
       <div class="metric"><span>Fuel</span><span id="rFuel">—</span></div>
+      <div class="metric"><span>P(detected) over route</span><span id="rDet">—</span></div>
       <div class="metric"><span>Max detection risk</span><span id="rMax">—</span></div>
-      <div class="metric"><span>Mean detection risk</span><span id="rMean">—</span></div>
       <div class="metric"><span>Altitude AGL (min–max)</span><span id="rAlt">—</span></div>
       <div class="metric"><span>Replan</span><span id="strategy">—</span></div>
       <div class="route-legend" style="margin-top:8px">
         <i style="background:#4da3ff"></i>Optimal &nbsp; <i style="background:#33d17a;border-bottom:2px dashed #33d17a;height:0"></i>Safest &nbsp; <i style="background:#f5b942;border-bottom:2px dashed #f5b942;height:0"></i>Fastest
       </div>
+    </div>
+
+    <div class="card">
+      <h2>Trade-off front (Pareto)</h2>
+      <div class="btn-row"><button class="ghost" id="pareto" disabled>Compute trade-offs</button></div>
+      <svg id="paretoSvg" viewBox="0 0 300 150" style="width:100%;height:120px;margin-top:8px;display:none"></svg>
+      <div id="paretoNote" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
     </div>
 
     <div class="card">
@@ -244,7 +251,7 @@ function render(st){
     rTime.textContent=st.route.total_time_min.toFixed(1)+" min";
     rFuel.textContent=st.route.total_fuel.toFixed(1)+" u";
     rMax.textContent=(st.route.max_risk*100).toFixed(0)+"%";
-    rMean.textContent=(st.route.mean_risk*100).toFixed(0)+"%";
+    rDet.textContent=(st.route.detection_prob*100).toFixed(0)+"%";
     const ra=st.route_altitudes||{};
     rAlt.textContent=(ra.min!=null)?`${ra.min}–${ra.max} m`:"—";
   }
@@ -283,7 +290,7 @@ async function startMission(){
   const body={scenario_id:scenario.value,use_forecast:forecast.checked,weights:weights()};
   const st=await (await fetch(API+"/mission",{method:"POST",headers:H(),body:JSON.stringify(body)})).json();
   render(st);
-  [step,play,replan].forEach(b=>b.disabled=false);
+  [step,play,replan,pareto].forEach(b=>b.disabled=false);
 }
 async function doStep(){
   const st=await (await fetch(`${API}/mission/${MID}/step`,{method:"POST",headers:H()})).json();
@@ -294,6 +301,24 @@ async function doReplan(){
     body:JSON.stringify({weights:weights()})})).json();
   render(st);
 }
+async function computePareto(){
+  paretoNote.textContent="computing…";
+  const pf=(await (await fetch(`${API}/mission/${MID}/pareto`,{headers:H()})).json()).front;
+  const svg=document.getElementById("paretoSvg"); svg.style.display="block";
+  if(!pf.length){ paretoNote.textContent="no front"; return; }
+  const T=pf.map(p=>p.time_min), D=pf.map(p=>p.detection_prob);
+  const tmin=Math.min(...T),tmax=Math.max(...T)+.01,dmin=Math.min(...D),dmax=Math.max(...D)+.001;
+  const x=t=>40+(t-tmin)/(tmax-tmin)*240, y=d=>15+(1-(d-dmin)/(dmax-dmin))*110;
+  let s=`<line x1='40' y1='125' x2='290' y2='125' stroke='#2A3A5C'/><line x1='40' y1='15' x2='40' y2='125' stroke='#2A3A5C'/>`;
+  s+=`<text x='165' y='145' fill='#90A4C4' font-size='10' text-anchor='middle'>flight time (min) →</text>`;
+  s+=`<text x='10' y='70' fill='#90A4C4' font-size='10' text-anchor='middle' transform='rotate(-90 10,70)'>P(detect) →</text>`;
+  const pts=pf.map(p=>`${x(p.time_min)},${y(p.detection_prob)}`).join(" ");
+  s+=`<polyline points='${pts}' fill='none' stroke='#4da3ff' stroke-width='1.5' opacity='0.6'/>`;
+  pf.forEach(p=>{ const c=p.alt_mean<400?"#33d171":(p.alt_mean<1000?"#f5b942":"#ff5d5d");
+    s+=`<circle cx='${x(p.time_min)}' cy='${y(p.detection_prob)}' r='4' fill='${c}'><title>safety ${p.safety} · ${p.time_min}min · P ${(p.detection_prob*100).toFixed(0)}% · ${p.alt_mean}m</title></circle>`; });
+  svg.innerHTML=s;
+  paretoNote.textContent="each point = an optimal route; green=low/NOE, amber=mid, red=high altitude";
+}
 function togglePlay(){
   if(playTimer){clearInterval(playTimer);playTimer=null;play.textContent="▶ Play";}
   else{play.textContent="⏸ Pause";playTimer=setInterval(doStep,1400);}
@@ -303,6 +328,7 @@ safety.oninput=()=>wS.textContent=(+safety.value).toFixed(1);
 time.oninput=()=>wT.textContent=(+time.value).toFixed(2);
 fuel.oninput=()=>wF.textContent=(+fuel.value).toFixed(2);
 start.onclick=startMission; step.onclick=doStep; play.onclick=togglePlay; replan.onclick=doReplan;
+pareto.onclick=computePareto;
 
 (async()=>{ await login(); await loadMetrics(); })();
 </script>

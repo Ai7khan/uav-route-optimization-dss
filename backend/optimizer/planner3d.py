@@ -145,10 +145,15 @@ def astar3d(field: CostField3D, start, goal_rc, weights: Weights,
     return None
 
 
+DETECT_RATE = 0.7  # per-minute detection hazard at full exposure (risk=1)
+
+
 def path_to_route3d(field: CostField3D, path, weights: Weights,
                     cruise=UAV_CRUISE_KMH, label="optimal") -> Route:
     ws, wt, wf = weights.safety, weights.time, weights.fuel
     segs, cum_t, cum_f, risks = [], 0.0, 0.0, []
+    hazard_integral = 0.0
+    prev_t = 0.0
     real = [nd for nd in path if nd[2] != GOAL_LAYER]
     r0, c0, l0 = real[0]
     lat0, lon0 = GRID.cell_to_latlon(r0, c0)
@@ -172,12 +177,16 @@ def path_to_route3d(field: CostField3D, path, weights: Weights,
         lat, lon = GRID.cell_to_latlon(b[0], b[1])
         rk = field.cell_risk(b)
         risks.append(rk)
+        hazard_integral += rk * (cum_t - prev_t)   # risk (rate) x dwell time (min)
+        prev_t = cum_t
         segs.append(RouteSegment(lat=lat, lon=lon, alt_agl_m=field.agls[b[2]], risk=rk,
                                  hazard=field.cell_hazard(b), cumulative_time_min=cum_t,
                                  cumulative_fuel=cum_f))
+    # Cumulative detection probability from a survival (hazard-rate) model.
+    detection_prob = 1.0 - float(np.exp(-DETECT_RATE * hazard_integral))
     return Route(segments=segs, total_time_min=cum_t, total_fuel=cum_f,
                  max_risk=max(risks), mean_risk=sum(risks) / len(risks),
-                 total_cost=total, label=label)
+                 detection_prob=detection_prob, total_cost=total, label=label)
 
 
 def plan3d(field, start, goal_rc, weights, cruise=UAV_CRUISE_KMH, label="optimal"):
@@ -280,3 +289,33 @@ class AdaptivePlanner3D:
             if r:
                 out.append(r)
         return out
+
+
+def pareto_front(field: CostField3D, start, goal_rc, cruise=UAV_CRUISE_KMH,
+                 safety_sweep=(0.1, 0.3, 0.6, 1.0, 1.6, 2.5, 4.0)) -> list[dict]:
+    """Sweep the safety weight and return the non-dominated trade-off points
+    between flight time and cumulative detection probability."""
+    pts = []
+    for s in safety_sweep:
+        r = plan3d(field, start, goal_rc, Weights(safety=s, time=0.4, fuel=0.3), cruise)
+        if r:
+            pts.append({"safety": s, "time_min": round(r.total_time_min, 1),
+                        "detection_prob": round(r.detection_prob, 3),
+                        "fuel": round(r.total_fuel, 1),
+                        "alt_mean": round(sum(x.alt_agl_m for x in r.segments) / len(r.segments))})
+    # keep Pareto-optimal: no other point is better in both time and detection
+    front = []
+    for p in pts:
+        if not any(q is not p and q["time_min"] <= p["time_min"]
+                   and q["detection_prob"] <= p["detection_prob"]
+                   and (q["time_min"] < p["time_min"] or q["detection_prob"] < p["detection_prob"])
+                   for q in pts):
+            front.append(p)
+    # dedupe + sort by time
+    seen, uniq = set(), []
+    for p in sorted(front, key=lambda x: x["time_min"]):
+        k = (p["time_min"], p["detection_prob"])
+        if k not in seen:
+            seen.add(k)
+            uniq.append(p)
+    return uniq

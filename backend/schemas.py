@@ -48,6 +48,7 @@ class Route(BaseModel):
     total_fuel: float
     max_risk: float
     mean_risk: float
+    detection_prob: float = 0.0   # cumulative P(detected) over the route: 1 - Prod(1-risk_i)
     total_cost: float
     label: str = "optimal"
 
