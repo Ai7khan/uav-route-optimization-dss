@@ -4,8 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+import numpy as np
+
 from backend.config import GRID, TIME_STEP_MIN
 from backend.schemas import ADSite, ADType
+from backend.sim.terrain import build_dem
 from backend.sim.weather import WeatherField
 
 
@@ -14,6 +17,7 @@ class Scenario:
     scenario_id: str
     weather: WeatherField
     ad_sites: list[ADSite]
+    terrain: np.ndarray = field(default=None)
     tick: int = 0
 
     @property
@@ -35,6 +39,17 @@ def _site(id_, fr_lat, fr_lon, t: ADType, rng, power=1.0, schedule=None) -> ADSi
                   power=power, schedule=schedule or [])
 
 
+_DEM = None
+
+
+def _dem():
+    """Shared, cached terrain (static across scenarios)."""
+    global _DEM
+    if _DEM is None:
+        _DEM = build_dem()
+    return _DEM
+
+
 def build_scenario(scenario_id: str) -> Scenario:
     """Factory for the demo presets. Site positions are fractions of the box."""
     if scenario_id == "clear":
@@ -45,7 +60,7 @@ def build_scenario(scenario_id: str) -> Scenario:
             _site("SAM-Alpha", 0.80, 0.20, ADType.medium_range, 30.0, power=1.0),
             _site("SAM-Bravo", 0.20, 0.80, ADType.short_range, 15.0, power=1.0),
         ]
-        return Scenario(scenario_id, weather, sites)
+        return Scenario(scenario_id, weather, sites, terrain=_dem())
 
     if scenario_id == "storm_front":
         # A localized precipitation band cuts across the map leaving a western
@@ -57,7 +72,7 @@ def build_scenario(scenario_id: str) -> Scenario:
         sites = [
             _site("SAM-Charlie", 0.28, 0.72, ADType.short_range, 15.0, power=1.0),
         ]
-        return Scenario(scenario_id, weather, sites)
+        return Scenario(scenario_id, weather, sites, terrain=_dem())
 
     if scenario_id == "sam_popup":
         # A medium SAM switches on mid-mission (ticks 6..999) astride the direct
@@ -68,7 +83,7 @@ def build_scenario(scenario_id: str) -> Scenario:
             _site("SAM-Delta", 0.50, 0.50, ADType.medium_range, 38.0, power=1.1,
                   schedule=[(6, 999)]),
         ]
-        return Scenario(scenario_id, weather, sites)
+        return Scenario(scenario_id, weather, sites, terrain=_dem())
 
     raise ValueError(f"unknown scenario_id: {scenario_id}")
 

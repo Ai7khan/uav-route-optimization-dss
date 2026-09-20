@@ -28,11 +28,30 @@ def site_is_active(site: ADSite, tick: int) -> bool:
     return any(start <= tick <= end for start, end in site.schedule)
 
 
+_VIEWSHED_CACHE: dict = {}
+
+
+def _cached_viewshed(dem, radar_rc, uav_agl_m):
+    from backend.sim.terrain import viewshed
+    key = (id(dem), radar_rc, round(uav_agl_m / 50.0))  # terrain & radar static
+    v = _VIEWSHED_CACHE.get(key)
+    if v is None:
+        v = viewshed(dem, radar_rc, uav_agl_m)
+        if len(_VIEWSHED_CACHE) > 256:
+            _VIEWSHED_CACHE.clear()
+        _VIEWSHED_CACHE[key] = v
+    return v
+
+
 def detection_field(sites: list[ADSite], tick: int, uav_alt_m: float,
-                    visibility_km: np.ndarray | None = None) -> np.ndarray:
+                    visibility_km: np.ndarray | None = None,
+                    terrain: np.ndarray | None = None) -> np.ndarray:
     """Return an NxN array of detection probability (0..1) over the whole grid.
 
-    Probability is combined across active sites as 1 - prod(1 - p_i).
+    Probability is combined across active sites as 1 - prod(1 - p_i). When a DEM
+    is supplied, terrain that blocks the radar's line of sight to the UAV (flying
+    `uav_alt_m` above ground level) zeroes detection there -- the UAV can hide
+    behind ridges. Viewsheds are cached (terrain and radars are static).
     """
     n = GRID.n
     combined = np.zeros((n, n))
@@ -40,7 +59,6 @@ def detection_field(sites: list[ADSite], tick: int, uav_alt_m: float,
     # Altitude factor: flying higher => more exposed to radar (0.6 low .. 1.3 high).
     alt_factor = 0.6 + 0.7 * np.clip(uav_alt_m / 3000.0, 0, 1)
 
-    # Precompute cell centre coordinates in km relative to grid origin.
     rows, cols = np.meshgrid(np.arange(n), np.arange(n), indexing="ij")
 
     for site in sites:
@@ -56,6 +74,10 @@ def detection_field(sites: list[ADSite], tick: int, uav_alt_m: float,
         steepness = 6.0 / rng_km
         p = 1.0 / (1.0 + np.exp(steepness * (dist - rng_km * 0.85)))
         p = p * site.power * alt_factor
+
+        if terrain is not None:
+            p = p * _cached_viewshed(terrain, (srow, scol), uav_alt_m)  # LOS masking
+
         p = np.clip(p, 0, 1)
         combined = 1 - (1 - combined) * (1 - p)
 

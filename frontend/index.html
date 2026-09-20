@@ -96,6 +96,7 @@
       <div class="metric"><span>Fuel</span><span id="rFuel">—</span></div>
       <div class="metric"><span>Max detection risk</span><span id="rMax">—</span></div>
       <div class="metric"><span>Mean detection risk</span><span id="rMean">—</span></div>
+      <div class="metric"><span>Altitude AGL (min–max)</span><span id="rAlt">—</span></div>
       <div class="metric"><span>Replan</span><span id="strategy">—</span></div>
       <div class="route-legend" style="margin-top:8px">
         <i style="background:#4da3ff"></i>Optimal &nbsp; <i style="background:#33d17a;border-bottom:2px dashed #33d17a;height:0"></i>Safest &nbsp; <i style="background:#f5b942;border-bottom:2px dashed #f5b942;height:0"></i>Fastest
@@ -135,13 +136,29 @@ function H(){ return {"Content-Type":"application/json","Authorization":"Bearer 
 function weights(){ return {safety:+safety.value, time:+time.value, fuel:+fuel.value}; }
 
 // --- map ---
-const map = L.map("map",{zoomControl:true}).setView([51.2,71.5],10);
+const map = L.map("map",{zoomControl:true}).setView([43.5,77.0],9);
 let _fitted=false;
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
   {attribution:"© OpenStreetMap",maxZoom:19}).addTo(map);
 
-let dangerOverlay=null, ringLayer=L.layerGroup().addTo(map), routeLayer=L.layerGroup().addTo(map),
-    markerLayer=L.layerGroup().addTo(map), windLayer=L.layerGroup().addTo(map);
+let terrainOverlay=null, dangerOverlay=null, ringLayer=L.layerGroup().addTo(map),
+    routeLayer=L.layerGroup().addTo(map), markerLayer=L.layerGroup().addTo(map),
+    windLayer=L.layerGroup().addTo(map);
+
+function drawTerrain(grid,b){
+  if(terrainOverlay) return; // static
+  const n=grid.length, m=grid[0].length;
+  const cv=document.createElement("canvas"); cv.width=m; cv.height=n;
+  const ctx=cv.getContext("2d"); const img=ctx.createImageData(m,n);
+  for(let i=0;i<n;i++)for(let j=0;j<m;j++){
+    const v=grid[n-1-i][j]; // flip south->bottom
+    const g=Math.round(40+v*150); // grey shaded relief
+    const idx=(i*m+j)*4; img.data[idx]=g; img.data[idx+1]=Math.round(g*1.02); img.data[idx+2]=Math.round(g*0.92);
+    img.data[idx+3]=150;
+  }
+  ctx.putImageData(img,0,0);
+  terrainOverlay=L.imageOverlay(cv.toDataURL(),[[b.lat_min,b.lon_min],[b.lat_max,b.lon_max]],{opacity:0.55,interactive:false}).addTo(map);
+}
 
 function rampColor(v){ // 0 green -> .5 amber -> 1 red
   v=Math.max(0,Math.min(1,v));
@@ -205,12 +222,14 @@ function markers(st){
   L.marker([st.start.lat,st.start.lon],{icon:ic("#33d17a")}).addTo(markerLayer).bindTooltip("Start");
   L.marker([st.goal.lat,st.goal.lon],{icon:ic("#4da3ff")}).addTo(markerLayer).bindTooltip("Objective");
   const uav=L.divIcon({className:"",html:`<div style="font-size:20px;filter:drop-shadow(0 0 4px #fff)">✈️</div>`,iconSize:[20,20]});
-  L.marker([st.uav.lat,st.uav.lon],{icon:uav}).addTo(markerLayer).bindTooltip("UAV");
+  L.marker([st.uav.lat,st.uav.lon],{icon:uav}).addTo(markerLayer)
+    .bindTooltip(`UAV · ${st.uav.alt_agl_m??"?"} m AGL`);
 }
 
 function render(st){
   MID=st.mission_id;
   if(!_fitted){ map.fitBounds([[st.bounds.lat_min,st.bounds.lon_min],[st.bounds.lat_max,st.bounds.lon_max]]); _fitted=true; }
+  if(st.terrain) drawTerrain(st.terrain,st.bounds);
   drawDanger(st.danger,st.bounds);
   drawWind(st.wind_u,st.wind_v,st.bounds);
   drawRings(st.threat_rings);
@@ -226,6 +245,8 @@ function render(st){
     rFuel.textContent=st.route.total_fuel.toFixed(1)+" u";
     rMax.textContent=(st.route.max_risk*100).toFixed(0)+"%";
     rMean.textContent=(st.route.mean_risk*100).toFixed(0)+"%";
+    const ra=st.route_altitudes||{};
+    rAlt.textContent=(ra.min!=null)?`${ra.min}–${ra.max} m`:"—";
   }
   const ps=st.planner_stats||{};
   const inc=(ps.strategy||"").startsWith("incremental");

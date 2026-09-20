@@ -28,11 +28,12 @@ class CostField:
     """Precomputed per-cell risk & hazard used to evaluate optimizer edges."""
 
     def __init__(self, ad_sites: list[ADSite], tick: int, uav_alt_m: float,
-                 weather: dict[str, np.ndarray]):
+                 weather: dict[str, np.ndarray], terrain: np.ndarray | None = None):
         self.tick = tick
-        self.alt = uav_alt_m
+        self.alt = uav_alt_m           # interpreted as altitude above ground level
         self.weather = weather
-        self.detect = detection_field(ad_sites, tick, uav_alt_m, weather["visibility_km"])
+        self.detect = detection_field(ad_sites, tick, uav_alt_m,
+                                      weather["visibility_km"], terrain=terrain)
         self.hazard = weather_hazard(weather)
         # Combined "danger" for display / heatmaps (weather hazard weighted so
         # storms are visible on the map, not just radar threats).

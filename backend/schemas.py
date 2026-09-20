@@ -35,6 +35,7 @@ class ADSite(BaseModel):
 class RouteSegment(BaseModel):
     lat: float
     lon: float
+    alt_agl_m: float = 0.0  # flight altitude above ground level at this point
     risk: float           # detection risk at this point (0..1)
     hazard: float         # weather hazard at this point (0..1)
     cumulative_time_min: float
