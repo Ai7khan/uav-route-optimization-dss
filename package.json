@@ -1,0 +1,12 @@
+{
+  "name": "uav-route-optimization-dss",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Deck generator for the UAV Route Optimization DSS (PptxGenJS)",
+  "scripts": {
+    "build:deck": "node scripts/build_deck.js"
+  },
+  "dependencies": {
+    "pptxgenjs": "^3.12.0"
+  }
+}

@@ -319,4 +319,7 @@ function dot(s, x, y, color, d = 0.16) {
   s.addText("python -m uvicorn backend.api.main:app  →  http://localhost:8017", { x: 0.9, y: 6.85, w: 11.5, h: 0.4, isTextBox: true, margin: 0, align: "center", fontFace: "Courier New", fontSize: 13, color: MUTED });
 })();
 
-p.writeFile({ fileName: "C:/Users/Asus/Desktop/defenceTech/Eighth_01_project/docs/UAV_DSS_Deck.pptx" }).then(f => console.log("WROTE", f));
+// Output path resolves relative to the repo root (run: node scripts/build_deck.js).
+const path = require("path");
+const OUT = path.join(__dirname, "..", "docs", "UAV_DSS_Deck.pptx");
+p.writeFile({ fileName: OUT }).then(f => console.log("WROTE", f));
