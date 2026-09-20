@@ -83,6 +83,7 @@ class MissionReq(BaseModel):
     alt_m: float = 500.0
     weights: Weights = Weights()
     use_forecast: bool = True
+    robust: bool = True
 
 
 @app.post("/mission")
@@ -98,7 +99,8 @@ def create_mission(req: MissionReq, user: str = Depends(require_user)):
     alt_m = max(UAV_ALT_MIN_M, min(UAV_ALT_MAX_M, req.alt_m))  # enforce altitude band
     m = session.create_mission(
         scenario_id=req.scenario_id, start=start, goal=goal,
-        weights=req.weights, alt_m=alt_m, use_forecast=req.use_forecast)
+        weights=req.weights, alt_m=alt_m, use_forecast=req.use_forecast,
+        robust=req.robust)
     return m.state()
 
 

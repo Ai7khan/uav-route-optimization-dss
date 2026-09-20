@@ -44,7 +44,7 @@ def _hillshade(dem: np.ndarray) -> np.ndarray:
 class Mission:
     def __init__(self, scenario_id: str, start: tuple[float, float],
                  goal: tuple[float, float], weights: Weights, alt_m: float = 700.0,
-                 use_forecast: bool = True):
+                 use_forecast: bool = True, robust: bool = True):
         self.id = str(uuid.uuid4())[:8]
         self.scenario: Scenario = build_scenario(scenario_id)
         self.scenario_id = scenario_id
@@ -56,6 +56,7 @@ class Mission:
         self.goal_rc = GRID.latlon_to_cell(*goal)
         self.weights = weights
         self.use_forecast = use_forecast
+        self.robust = robust
 
         self.emission_history = np.zeros((1, len(self.scenario.ad_sites)), dtype=np.int8)
         self._record_emissions()
@@ -68,21 +69,39 @@ class Mission:
 
     # --- field construction -------------------------------------------------
     def _build_field(self) -> CostField3D:
-        weather = self.scenario.weather.snapshot()
-        if self.use_forecast:
-            weather = forecast_weather(weather, steps=3)  # plan against future weather
-        sites = self._effective_sites()
-        return CostField3D(sites, self.scenario.tick, weather, terrain=self.scenario.terrain)
+        terrain = self.scenario.terrain
+        tick = self.scenario.tick
+        now_w = self.scenario.weather.snapshot()
 
-    def _effective_sites(self):
-        """Currently-active sites plus those the AD predictor says will activate
-        soon (pre-emptive avoidance in forecast mode)."""
+        if not self.use_forecast:
+            return CostField3D(self._sites(predict=False), tick, now_w, terrain=terrain)
+
+        fc_w = forecast_weather(now_w, steps=3)          # plan against future weather
+        fc_field = CostField3D(self._sites(predict=True), tick, fc_w, terrain=terrain)
+        if not self.robust:
+            return fc_field
+
+        # Robust: worst-case of current conditions and the 6-min forecast, so the
+        # route stays safe whether the forecast holds or current persists. Actual
+        # (current) wind is kept for time/fuel; detection/hazard take the max.
+        now_field = CostField3D(self._sites(predict=False), tick, now_w, terrain=terrain)
+        for l in range(fc_field.L):
+            now_field.detect[l] = np.maximum(now_field.detect[l], fc_field.detect[l])
+        now_field.hazard = np.maximum(now_field.hazard, fc_field.hazard)
+        best = np.minimum.reduce(now_field.detect)
+        now_field.danger = np.clip(0.75 * best + 0.6 * now_field.hazard, 0, 1)
+        return now_field
+
+    def _sites(self, predict: bool):
+        """Threat sites. predict=True also flags sites the AD model expects to
+        activate soon (a cautious threshold in robust mode)."""
+        thr = 0.3 if self.robust else 0.5
         sites = []
         t = self.emission_history.shape[0] - 1
         for j, s in enumerate(self.scenario.ad_sites):
             active = site_is_active(s, self.scenario.tick)
-            if not active and self.use_forecast and t >= 3:
-                if ad_predictor.predict_activity(self.emission_history, t, j) >= 0.5:
+            if not active and predict and t >= 3:
+                if ad_predictor.predict_activity(self.emission_history, t, j) >= thr:
                     active = True
             s2 = s.model_copy()
             s2.active = active
@@ -187,6 +206,7 @@ class Mission:
             "altitude_layers": list(DEFAULT_AGLS),
             "planner_stats": self.planner.last_stats,
             "use_forecast": self.use_forecast,
+            "robust": self.robust,
             "weights": self.weights.model_dump(),
         }
 
