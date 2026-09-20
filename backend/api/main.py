@@ -84,6 +84,7 @@ class MissionReq(BaseModel):
     weights: Weights = Weights()
     use_forecast: bool = True
     robust: bool = True
+    waypoints: list[tuple[float, float]] = []  # ordered (lat, lon) the route must pass
 
 
 @app.post("/mission")
@@ -100,7 +101,7 @@ def create_mission(req: MissionReq, user: str = Depends(require_user)):
     m = session.create_mission(
         scenario_id=req.scenario_id, start=start, goal=goal,
         weights=req.weights, alt_m=alt_m, use_forecast=req.use_forecast,
-        robust=req.robust)
+        robust=req.robust, waypoints=req.waypoints)
     return m.state()
 
 

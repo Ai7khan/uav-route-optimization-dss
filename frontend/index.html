@@ -71,6 +71,17 @@
     </div>
 
     <div class="card">
+      <h2>Plan task (click map to place)</h2>
+      <div class="btn-row">
+        <button class="ghost" id="placeStart">◉ Start</button>
+        <button class="ghost" id="placeGoal">◎ Goal</button>
+        <button class="ghost" id="placeWp">+ Waypoint</button>
+        <button class="ghost" id="placeClear">Clear</button>
+      </div>
+      <div id="placeNote" style="font-size:11px;color:var(--muted);margin-top:6px">Optional — theatre defaults are used if unset.</div>
+    </div>
+
+    <div class="card">
       <h2>Priorities</h2>
       <div class="slider-row"><label>Safety</label><b id="wS">1.0</b></div>
       <input type="range" id="safety" min="0" max="3" step="0.1" value="1.0" />
@@ -229,6 +240,7 @@ function markers(st){
   const ic=(c)=>L.divIcon({className:"",html:`<div style="width:14px;height:14px;border-radius:50%;background:${c};border:2px solid #fff;box-shadow:0 0 6px ${c}"></div>`,iconSize:[14,14]});
   L.marker([st.start.lat,st.start.lon],{icon:ic("#33d17a")}).addTo(markerLayer).bindTooltip("Start");
   L.marker([st.goal.lat,st.goal.lon],{icon:ic("#4da3ff")}).addTo(markerLayer).bindTooltip("Objective");
+  (st.waypoints||[]).forEach((w,i)=>L.marker([w.lat,w.lon],{icon:ic("#f5b942")}).addTo(markerLayer).bindTooltip("WP"+(i+1)));
   const uav=L.divIcon({className:"",html:`<div style="font-size:20px;filter:drop-shadow(0 0 4px #fff)">✈️</div>`,iconSize:[20,20]});
   L.marker([st.uav.lat,st.uav.lon],{icon:uav}).addTo(markerLayer)
     .bindTooltip(`UAV · ${st.uav.alt_agl_m??"?"} m AGL`);
@@ -286,11 +298,46 @@ async function loadMetrics(){
     <div class="metric"><span>AD vs persistence</span><span>+${a.gain_pts} pts</span></div>`;
 }
 
+// --- mission builder: click map to place start / goal / waypoints ---
+let placeMode="off", placed={start:null,goal:null,wps:[]};
+const placeLayer=L.layerGroup().addTo(map);
+function pmark(lat,lon,color,label){
+  return L.marker([lat,lon],{icon:L.divIcon({className:"",html:`<div style="width:16px;height:16px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 0 6px ${color}"></div>`,iconSize:[16,16]})}).bindTooltip(label);
+}
+function drawPlaced(){
+  placeLayer.clearLayers();
+  if(placed.start) pmark(placed.start[0],placed.start[1],"#33d171","Start").addTo(placeLayer);
+  if(placed.goal) pmark(placed.goal[0],placed.goal[1],"#4da3ff","Objective").addTo(placeLayer);
+  placed.wps.forEach((w,i)=>pmark(w[0],w[1],"#f5b942","WP"+(i+1)).addTo(placeLayer));
+}
+function setMode(m){ placeMode=m;
+  [placeStart,placeGoal,placeWp].forEach(b=>b.style.outline="");
+  ({start:placeStart,goal:placeGoal,waypoint:placeWp}[m]||{}).style && (({start:placeStart,goal:placeGoal,waypoint:placeWp}[m]).style.outline="2px solid #4da3ff");
+  placeNote.textContent = m==="off" ? "Optional — theatre defaults are used if unset." : `Click the map to set ${m}.`;
+}
+map.on("click",e=>{
+  if(placeMode==="off") return;
+  const p=[e.latlng.lat,e.latlng.lng];
+  if(placeMode==="start") placed.start=p;
+  else if(placeMode==="goal") placed.goal=p;
+  else if(placeMode==="waypoint") placed.wps.push(p);
+  drawPlaced();
+});
+placeStart.onclick=()=>setMode(placeMode==="start"?"off":"start");
+placeGoal.onclick=()=>setMode(placeMode==="goal"?"off":"goal");
+placeWp.onclick=()=>setMode(placeMode==="waypoint"?"off":"waypoint");
+placeClear.onclick=()=>{placed={start:null,goal:null,wps:[]};drawPlaced();setMode("off");};
+
 async function startMission(){
   if(playTimer){clearInterval(playTimer);playTimer=null;play.textContent="▶ Play";}
   const body={scenario_id:scenario.value,use_forecast:forecast.checked,robust:robust.checked,weights:weights()};
+  if(placed.start){body.start_lat=placed.start[0];body.start_lon=placed.start[1];}
+  if(placed.goal){body.goal_lat=placed.goal[0];body.goal_lon=placed.goal[1];}
+  if(placed.wps.length) body.waypoints=placed.wps;
+  setMode("off");
   const st=await (await fetch(API+"/mission",{method:"POST",headers:H(),body:JSON.stringify(body)})).json();
   render(st);
+  placeLayer.clearLayers();  // mission markers take over from placement markers
   [step,play,replan,pareto].forEach(b=>b.disabled=false);
 }
 async function doStep(){

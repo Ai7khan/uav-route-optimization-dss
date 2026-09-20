@@ -194,6 +194,26 @@ def plan3d(field, start, goal_rc, weights, cruise=UAV_CRUISE_KMH, label="optimal
     return path_to_route3d(field, path, weights, cruise, label) if path else None
 
 
+def plan_through(field, start, waypoints_rc, goal_rc, weights,
+                 cruise=UAV_CRUISE_KMH, label="optimal") -> Optional[Route]:
+    """Plan a route that passes through ordered waypoints, then to the goal.
+    Each leg is an optimal 3D A* path; legs are concatenated at their junctions."""
+    targets = list(waypoints_rc) + [goal_rc]
+    cur = start
+    merged = None
+    for tgt in targets:
+        path = astar3d(field, cur, tgt, weights, cruise)
+        if path is None:
+            return None
+        real = [nd for nd in path if nd[2] != GOAL_LAYER]  # drop virtual-goal sentinel
+        if merged is None:
+            merged = real
+        else:
+            merged += real[1:]          # first node == previous leg's end
+        cur = real[-1]                  # continue from the arrival cell/altitude
+    return path_to_route3d(field, merged, weights, cruise, label)
+
+
 # --- 3D D* Lite (subclass of the validated 2D engine) -----------------------
 from backend.optimizer.dstar_lite import DStarLite, changed_cells  # noqa: E402
 
@@ -292,12 +312,15 @@ class AdaptivePlanner3D:
 
 
 def pareto_front(field: CostField3D, start, goal_rc, cruise=UAV_CRUISE_KMH,
-                 safety_sweep=(0.1, 0.3, 0.6, 1.0, 1.6, 2.5, 4.0)) -> list[dict]:
+                 safety_sweep=(0.1, 0.3, 0.6, 1.0, 1.6, 2.5, 4.0),
+                 waypoints_rc=None) -> list[dict]:
     """Sweep the safety weight and return the non-dominated trade-off points
     between flight time and cumulative detection probability."""
     pts = []
     for s in safety_sweep:
-        r = plan3d(field, start, goal_rc, Weights(safety=s, time=0.4, fuel=0.3), cruise)
+        w = Weights(safety=s, time=0.4, fuel=0.3)
+        r = (plan_through(field, start, waypoints_rc, goal_rc, w, cruise) if waypoints_rc
+             else plan3d(field, start, goal_rc, w, cruise))
         if r:
             pts.append({"safety": s, "time_min": round(r.total_time_min, 1),
                         "detection_prob": round(r.detection_prob, 3),

@@ -10,7 +10,8 @@ from backend.config import GRID, TIME_STEP_MIN
 from backend.ml import ad_predictor
 from backend.ml.forecast import forecast_weather
 from backend.optimizer.planner3d import (DEFAULT_AGLS, AdaptivePlanner3D,
-                                         CostField3D, pareto_front, plan3d)
+                                         CostField3D, pareto_front, plan3d,
+                                         plan_through)
 from backend.schemas import Route, Weights
 from backend.sim.airdefense import site_is_active, threat_rings
 from backend.sim.scenario import Scenario, build_scenario
@@ -44,7 +45,8 @@ def _hillshade(dem: np.ndarray) -> np.ndarray:
 class Mission:
     def __init__(self, scenario_id: str, start: tuple[float, float],
                  goal: tuple[float, float], weights: Weights, alt_m: float = 700.0,
-                 use_forecast: bool = True, robust: bool = True):
+                 use_forecast: bool = True, robust: bool = True,
+                 waypoints: list[tuple[float, float]] | None = None):
         self.id = str(uuid.uuid4())[:8]
         self.scenario: Scenario = build_scenario(scenario_id)
         self.scenario_id = scenario_id
@@ -54,6 +56,8 @@ class Mission:
         self.start_layer = int(np.argmin([abs(a - alt_m) for a in DEFAULT_AGLS]))
         self.start = (rc[0], rc[1], self.start_layer)     # 3D start node
         self.goal_rc = GRID.latlon_to_cell(*goal)
+        self.waypoints_latlon = list(waypoints or [])
+        self.waypoints_rc = [GRID.latlon_to_cell(la, lo) for la, lo in self.waypoints_latlon]
         self.weights = weights
         self.use_forecast = use_forecast
         self.robust = robust
@@ -62,10 +66,15 @@ class Mission:
         self._record_emissions()
 
         self.field = self._build_field()
-        self.planner = AdaptivePlanner3D(self.field, self.start, self.goal_rc, weights)
-        self.route: Route | None = self.planner.current_route()
+        # With waypoints the route is planned piecewise (A*); without, the adaptive
+        # D* Lite planner gives near-zero-cost incremental replanning.
+        self.planner = None if self.waypoints_rc else \
+            AdaptivePlanner3D(self.field, self.start, self.goal_rc, weights)
+        self.route: Route | None = self._plan()
         self.alternatives: list[Route] = self._alts()
         self.uav_elapsed_min = 0.0
+        self._replan_stats = {"strategy": "multi-leg A*", "ms": 0.0, "maintenance_ms": 0.0,
+                              "expansions": 0, "changed_cells": 0}
 
     # --- field construction -------------------------------------------------
     def _build_field(self) -> CostField3D:
@@ -117,10 +126,19 @@ class Mission:
         else:
             self.emission_history = np.vstack([self.emission_history, row])
 
+    def _plan(self) -> Route | None:
+        if self.waypoints_rc:
+            return plan_through(self.field, self.start, self.waypoints_rc,
+                                self.goal_rc, self.weights)
+        return self.planner.current_route()
+
     def _alts(self) -> list[Route]:
         out = []
         for label, w in ALT_PRESETS.items():
-            r = plan3d(self.field, self.start, self.goal_rc, w, label=label)
+            if self.waypoints_rc:
+                r = plan_through(self.field, self.start, self.waypoints_rc, self.goal_rc, w, label=label)
+            else:
+                r = plan3d(self.field, self.start, self.goal_rc, w, label=label)
             if r:
                 out.append(r)
         return out
@@ -130,8 +148,15 @@ class Mission:
         self.scenario.step()
         self._record_emissions()
         new_field = self._build_field()
-        self.route = self.planner.update(new_field)
         self.field = new_field
+        if self.planner:
+            self.route = self.planner.update(new_field)
+        else:
+            import time
+            t0 = time.time()
+            self.route = plan_through(new_field, self.start, self.waypoints_rc, self.goal_rc, self.weights)
+            self._replan_stats = {"strategy": "multi-leg A*", "ms": (time.time() - t0) * 1000,
+                                  "maintenance_ms": 0.0, "expansions": 0, "changed_cells": 0}
         self.alternatives = self._alts()
         self.uav_elapsed_min += TIME_STEP_MIN
         return self.state()
@@ -139,9 +164,11 @@ class Mission:
     def replan(self, weights: Weights | None = None) -> dict:
         if weights is not None:
             self.weights = weights
-        # Rebuild the adaptive planner with current field + weights.
-        self.planner = AdaptivePlanner3D(self.field, self.start, self.goal_rc, self.weights)
-        self.route = self.planner.current_route()
+        if self.waypoints_rc:
+            self.route = plan_through(self.field, self.start, self.waypoints_rc, self.goal_rc, self.weights)
+        else:
+            self.planner = AdaptivePlanner3D(self.field, self.start, self.goal_rc, self.weights)
+            self.route = self.planner.current_route()
         self.alternatives = self._alts()
         return self.state()
 
@@ -172,7 +199,8 @@ class Mission:
         return out
 
     def pareto(self):
-        return pareto_front(self.field, self.start, self.goal_rc)
+        return pareto_front(self.field, self.start, self.goal_rc,
+                            waypoints_rc=self.waypoints_rc or None)
 
     def _route_altitudes(self):
         if not self.route:
@@ -199,12 +227,13 @@ class Mission:
             "ad_predictions": self._ad_predictions(),
             "start": {"lat": self.start_latlon[0], "lon": self.start_latlon[1]},
             "goal": {"lat": self.goal_latlon[0], "lon": self.goal_latlon[1]},
+            "waypoints": [{"lat": la, "lon": lo} for la, lo in self.waypoints_latlon],
             "uav": self._uav_position(),
             "route": self.route.model_dump() if self.route else None,
             "alternatives": [a.model_dump() for a in self.alternatives],
             "route_altitudes": self._route_altitudes(),
             "altitude_layers": list(DEFAULT_AGLS),
-            "planner_stats": self.planner.last_stats,
+            "planner_stats": self.planner.last_stats if self.planner else self._replan_stats,
             "use_forecast": self.use_forecast,
             "robust": self.robust,
             "weights": self.weights.model_dump(),
