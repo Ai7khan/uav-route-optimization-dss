@@ -16,6 +16,12 @@ one-line change of the four box coordinates in [`backend/config.py`](backend/con
 ![status](https://img.shields.io/badge/tests-passing-brightgreen) ·
 Python 3.10 · FastAPI · PyTorch · scikit-learn · Leaflet
 
+![demo](docs/demo.gif)
+
+*The route re-planning around a mid-mission SAM pop-up. Green = nap-of-the-earth
+(200 m, terrain-masked); the western corridor is chosen as the threat blooms, via a
+0 ms incremental D\* Lite repair.*
+
 ---
 
 ## Highlights (mapped to the judging criteria)
