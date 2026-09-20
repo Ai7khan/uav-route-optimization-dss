@@ -10,6 +10,11 @@ region of Kazakhstan) discretised into a 100×100 grid (~1.1 km per cell). Every
 shares this grid (`backend/config.py: GridSpec`). Helpers convert lat/lon ↔ cell and
 compute planar inter-cell distances in km.
 
+All scenario placements (SAM sites) and the default start/goal are expressed as
+**fractions of the box** via `GridSpec.frac_to_latlon`, not absolute coordinates —
+so retargeting the theatre to any region is a one-line change of the four box
+numbers in `config.py`; everything else follows automatically.
+
 ## 2. Simulation (`backend/sim/`)
 
 All data is simulated (real data is prohibited by the brief).
@@ -59,8 +64,11 @@ cost(a→b) = w_safety·(risk² · 50 + hazard · 5)  +  w_time·minutes  +  w_f
 ### A* baseline (`astar.py`)
 8-connected grid search minimising the edge cost, with an **admissible** heuristic
 (best-case time+fuel to goal at cruise+tailwind, ignoring the non-negative risk term),
-so it returns the true optimum. Constraints (fuel/time/altitude, no-fly cells) are
-respected. ~130–160 ms for a corner-to-corner plan on the 100×100 grid.
+so it returns the true optimum. Constraints (fuel/time, no-fly cells) are
+respected; the operator's altitude is clamped to the UAV band
+(`UAV_ALT_MIN_M..UAV_ALT_MAX_M`) in the API and feeds the detection model, so
+flying lower trades radar exposure for terrain risk. ~130–160 ms for a
+corner-to-corner plan on the 100×100 grid.
 
 ### Multi-objective alternatives (`route.py`)
 Besides the operator-weighted **optimal** route, we solve two presets — **safest**

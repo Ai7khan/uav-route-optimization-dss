@@ -26,7 +26,7 @@ from pydantic import BaseModel
 FRONTEND = os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "index.html")
 
 from backend.api import security, session
-from backend.config import GRID
+from backend.config import GRID, UAV_ALT_MAX_M, UAV_ALT_MIN_M
 from backend.schemas import Weights
 from backend.sim.scenario import PRESETS
 
@@ -95,9 +95,10 @@ def create_mission(req: MissionReq, user: str = Depends(require_user)):
              req.start_lon if req.start_lon is not None else dstart[1])
     goal = (req.goal_lat if req.goal_lat is not None else dgoal[0],
             req.goal_lon if req.goal_lon is not None else dgoal[1])
+    alt_m = max(UAV_ALT_MIN_M, min(UAV_ALT_MAX_M, req.alt_m))  # enforce altitude band
     m = session.create_mission(
         scenario_id=req.scenario_id, start=start, goal=goal,
-        weights=req.weights, alt_m=req.alt_m, use_forecast=req.use_forecast)
+        weights=req.weights, alt_m=alt_m, use_forecast=req.use_forecast)
     return m.state()
 
 

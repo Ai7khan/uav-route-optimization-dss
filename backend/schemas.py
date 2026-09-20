@@ -1,13 +1,13 @@
-"""Data contracts shared across the system (Phase 0 - frozen first).
+"""Data contracts shared across the system.
 
-These Pydantic models define the JSON shapes exchanged between the simulation,
-the ML/risk layers, the optimizer, and the API/UI. Grid fields (weather, risk)
-are transmitted as nested lists (row-major NxN) for easy JSON serialisation.
+Pydantic models exchanged between the simulation, ML/risk layers, optimizer and
+API. The live mission-state payload is assembled as a dict in
+`backend/api/session.py: Mission.state()`; the models here are the typed pieces
+that payload is built from (routes, sites, weights).
 """
 from __future__ import annotations
 
 from enum import Enum
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -31,35 +31,6 @@ class ADSite(BaseModel):
     schedule: list[tuple[int, int]] = Field(default_factory=list)
 
 
-# --- Weather ----------------------------------------------------------------
-class WeatherCell(BaseModel):
-    wind_u: float   # eastward wind component (km/h)
-    wind_v: float   # northward wind component (km/h)
-    visibility_km: float
-    precip: float   # 0..1 precipitation intensity
-    temp_c: float
-    humidity: float  # 0..1
-
-
-class WeatherGrid(BaseModel):
-    """Row-major NxN grids, one per weather variable."""
-    wind_u: list[list[float]]
-    wind_v: list[list[float]]
-    visibility_km: list[list[float]]
-    precip: list[list[float]]
-    temp_c: list[list[float]]
-    humidity: list[list[float]]
-
-
-# --- UAV --------------------------------------------------------------------
-class UAVState(BaseModel):
-    lat: float
-    lon: float
-    alt_m: float
-    speed_kmh: float
-    fuel: float
-
-
 # --- Route ------------------------------------------------------------------
 class RouteSegment(BaseModel):
     lat: float
@@ -80,31 +51,8 @@ class Route(BaseModel):
     label: str = "optimal"
 
 
+# --- Operator multi-objective weights (safety / speed / fuel sliders) --------
 class Weights(BaseModel):
     safety: float = 1.0
     time: float = 0.4
     fuel: float = 0.3
-
-
-# --- Requests / responses ---------------------------------------------------
-class PlanRequest(BaseModel):
-    scenario_id: str
-    start_lat: float
-    start_lon: float
-    goal_lat: float
-    goal_lon: float
-    alt_m: float = 500.0
-    weights: Weights = Field(default_factory=Weights)
-    tick: int = 0
-    waypoints: list[tuple[float, float]] = Field(default_factory=list)
-    use_forecast: bool = True
-    alternatives: bool = True
-
-
-class ScenarioState(BaseModel):
-    scenario_id: str
-    tick: int
-    time_min: float
-    weather: WeatherGrid
-    ad_sites: list[ADSite]
-    uav: Optional[UAVState] = None

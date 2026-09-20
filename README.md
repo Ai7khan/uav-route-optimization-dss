@@ -9,6 +9,10 @@ continuously as conditions change.
 > Hackathon problem: *"Оптимизация маршрутов БПЛА в условиях изменяющейся
 > погодной обстановки и активности ПВО"* (Приложение 2). All data is **simulated**.
 
+**Theatre:** Astana region, Kazakhstan (50.7–51.7°N, 71–72°E). All positions are
+defined as fractions of the bounding box, so retargeting to any region is a
+one-line change of the four box coordinates in [`backend/config.py`](backend/config.py).
+
 ![status](https://img.shields.io/badge/tests-passing-brightgreen) ·
 Python 3.10 · FastAPI · PyTorch · scikit-learn · Leaflet
 

@@ -74,13 +74,5 @@ GRID = GridSpec()
 # --- Simulation defaults ----------------------------------------------------
 TIME_STEP_MIN = 2.0        # minutes of simulated time per tick
 UAV_CRUISE_KMH = 120.0     # nominal UAV cruise speed
-UAV_ALT_MIN_M = 100.0
-UAV_ALT_MAX_M = 3000.0
-UAV_FUEL_FULL = 100.0      # arbitrary fuel units (percent)
-
-# --- Default multi-objective weights (operator sliders override these) ------
-DEFAULT_WEIGHTS = {
-    "safety": 1.0,   # weight on detection/threat risk
-    "time": 0.4,     # weight on flight time
-    "fuel": 0.3,     # weight on fuel burn
-}
+UAV_ALT_MIN_M = 100.0      # altitude constraint (brief §6): operator alt is clamped
+UAV_ALT_MAX_M = 3000.0     # to this band; altitude also scales radar exposure
