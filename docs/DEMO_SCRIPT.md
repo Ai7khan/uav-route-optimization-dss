@@ -47,6 +47,12 @@ Point to **Model accuracy**:
 - AD activity: **AUC 0.79**, **+22.3 pts** over persistence at 6 min.
 "These aren't heuristics — they're trained models, benchmarked against a fair baseline."
 
+## Beat 5b — Advanced capabilities (60s, optional deep-dive)
+- **Terrain masking + 3D:** point to the hillshade (Almaty mountains). Set **Safety** high, Re-plan → the route drops to **200 m nap-of-the-earth** (see "Altitude AGL" in the panel) to hide behind ridges; a fast/high route is exposed. This is real line-of-sight radar masking over a real-relief DEM.
+- **Pareto:** click **Compute trade-offs** → the time-vs-detection front appears (green points = low/NOE altitude, red = high). "The operator picks the point, not a fixed preset."
+- **Robust:** toggle **Robust** — the route is planned for the worst case of current + forecast, so it stays safe if the forecast is wrong.
+- **Mission builder:** click **Start / Goal / +Waypoint** on the map and launch — the route threads the waypoints. "Operators task the system directly."
+
 ## Beat 6 — Under the hood + close (45s)
 "Simulated weather + air-defense feeds → trained forecasts → a risk cost field combining
 detection probability and weather hazard → an adaptive A*/D* Lite optimizer → this

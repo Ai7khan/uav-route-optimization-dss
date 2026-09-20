@@ -128,6 +128,49 @@ field (where the storm will be), and sites the AD model predicts will activate s
 treated as threats — so the UAV **pre-emptively** routes around a SAM before it emits.
 Both models degrade gracefully to physics/persistence baselines if untrained.
 
+## 5a. Terrain masking & 3D altitude planning (`sim/terrain.py`, `optimizer/planner3d.py`)
+
+**Terrain (DEM).** `build_dem()` produces a realistic elevation grid for the Almaty
+theatre — the Trans-Ili Alatau range (to ~4600 m) in the south grading to ~700 m plains
+in the north, with a carved valley corridor. The interface takes any NxN metre array, so
+a real SRTM/GIS raster drops in unchanged.
+
+**Line-of-sight masking.** `viewshed(dem, radar, uav_agl)` marches sampled rays from each
+radar to every cell and marks a cell *masked* if terrain rises above the sightline. A
+radar on a ridge sees only ~47 % of the map against a UAV at 150 m AGL, but ~97 % at
+1500 m — so **flying low behind ridges breaks detection**. Viewsheds are cached (terrain
+and radars are static); ~20 ms each.
+
+**3D optimizer.** Nodes are `(row, col, layer)` over 200 / 700 / 1500 m AGL. Each layer
+carries its own terrain-masked detection field; horizontal moves stay in a layer, vertical
+moves cost a climb/descent. A virtual goal lets the UAV arrive at whatever altitude is
+cheapest. `astar3d` finds the optimum; `DStarLite3D` (adjacency kept symmetric, incl. the
+goal, so predecessor/successor logic stays valid) is **validated to return the same cost
+as A\***, and `AdaptivePlanner3D` gives the same ~0 ms incremental / A*-fallback behaviour
+in 3D. Result: safety-heavy routes fly **nap-of-the-earth at 200 m**; time-heavy routes
+cruise high.
+
+## 5b. Survival probability, Pareto front & robust planning
+
+**Survival probability.** Per-cell detection risk is treated as a hazard *rate*; route
+detection probability = `1 − exp(−rate · ∫ risk dt)`. This discriminates cleanly
+(≈0.70 nap-of-earth vs ≈0.89 exposed) where a naive per-cell product saturates near 1.
+
+**Pareto front.** `pareto_front()` sweeps the safety weight and returns the non-dominated
+time-vs-detection routes — the operator sees the whole trade-off surface (and each point's
+altitude band), not just three presets.
+
+**Robust planning.** In robust mode the planner optimises against the **worst case of
+current conditions and the 6-min ML forecast** (element-wise max of detection + hazard)
+with a cautious AD-activation threshold, so the route is safe whether the forecast holds
+or current conditions persist. Actual current wind is kept for time/fuel accuracy.
+
+## 5c. Operator mission builder (`optimizer/planner3d.py: plan_through`)
+
+The operator clicks the map to place start, objective and ordered **waypoints**;
+`plan_through()` chains optimal 3D A* legs through them. With waypoints the system replans
+piecewise each tick; without them it uses the adaptive D* Lite engine.
+
 ## 6. API & security (`backend/api/`)
 
 FastAPI serves the dashboard and a small REST + WebSocket surface (login, scenarios,

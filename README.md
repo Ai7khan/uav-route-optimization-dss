@@ -23,10 +23,17 @@ Python 3.10 · FastAPI · PyTorch · scikit-learn · Leaflet
 | Criterion | What we built | Result |
 |---|---|---|
 | **Prediction accuracy** | Weather nowcaster (PyTorch CNN) + AD-activity predictor (sklearn GBM) | Weather: **-39.4% RMSE** vs persistence @6 min · AD: **+22.3 pts** accuracy vs persistence @6 min, AUC 0.79–0.86 |
-| **Route efficiency** | Multi-objective A* + risk cost field | Per-route time / fuel / max & mean detection risk; keeps risk low by detouring around threats |
-| **Innovation** | **Adaptive D* Lite** incremental re-planning + ML-driven **pre-emptive** threat avoidance | Continuous replans in **~0 ms** vs A*'s ~155 ms → **10.9× lower** operator-facing latency |
-| **UI** | Live operator dashboard (map, danger heatmap, routes, sliders, clock) | Zero-build, runs from one command |
-| **Documentation** | This README + [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) + [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md) + 21 tests | — |
+| **Route efficiency** | Multi-objective **3D** A* + risk cost field + **survival-probability** metric | Per-route time / fuel / detection-risk + cumulative **P(detected)**; detours and descends to cut risk |
+| **Innovation** | **Adaptive D* Lite** replanning · **terrain-masking (LOS)** · **3D nap-of-earth** altitude · ML **pre-emptive** avoidance · **Pareto** front · **robust** worst-case planning | ~0 ms incremental replan (**10.9×** lower latency); routes hide behind ridges & fly low |
+| **UI** | Live operator dashboard + **click-to-place mission builder** (start/goal/waypoints) | Zero-build, runs from one command; terrain hillshade, altitude & Pareto views |
+| **Documentation** | This README + [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) + [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md) + 27 tests | — |
+
+### Advanced capabilities (added in the second iteration)
+- **Terrain masking** — a real-relief DEM (Trans-Ili Alatau, Almaty) with radar line-of-sight viewsheds: the UAV hides behind ridges.
+- **3D altitude planning** — routes optimise over 200 / 700 / 1500 m AGL, flying nap-of-the-earth for cover and climbing only when needed.
+- **Survival-probability & Pareto** — cumulative detection probability from a hazard-rate model, and a time-vs-detection trade-off front.
+- **Robust planning** — plan against the worst case of current conditions and the ML forecast.
+- **Operator mission builder** — click the map to place start, objective and waypoints.
 
 ---
 

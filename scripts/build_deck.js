@@ -50,7 +50,7 @@ function dot(s, x, y, color, d = 0.16) {
     s.addText(c[0], { x: x + 0.3, y: 4.7, w: 3, h: 0.7, isTextBox: true, margin: 0, fontFace: HF, fontSize: 34, bold: true, color: c[2] });
     s.addText(c[1], { x: x + 0.3, y: 5.42, w: 3.1, h: 0.4, isTextBox: true, margin: 0, fontFace: BF, fontSize: 13, color: MUTED });
   });
-  s.addText("Working prototype · 21 passing tests · runs from one command", { x: 0.9, y: 6.5, w: 11, h: 0.4, isTextBox: true, margin: 0, fontFace: BF, fontSize: 13, italic: true, color: MUTED });
+  s.addText("Working prototype · 27 passing tests · runs from one command", { x: 0.9, y: 6.5, w: 11, h: 0.4, isTextBox: true, margin: 0, fontFace: BF, fontSize: 13, italic: true, color: MUTED });
   s.addNotes("Decision support system that re-optimizes UAV routes in real time as weather and air-defense conditions change. All data simulated per the brief.");
 })();
 
@@ -194,7 +194,7 @@ function dot(s, x, y, color, d = 0.16) {
   // schematic "map"
   const mx = 0.9, my = 2.0, mw = 7.0, mh = 4.9;
   s.addShape(p.ShapeType.roundRect, { x: mx, y: my, w: mw, h: mh, fill: { color: "0E1A30" }, line: { color: LINE, width: 1 }, rectRadius: 0.09 });
-  s.addText("THEATRE · ASTANA REGION, KAZAKHSTAN", { x: mx + 0.2, y: my + 0.14, w: 6.5, h: 0.3, isTextBox: true, margin: 0, fontFace: HF, fontSize: 10, bold: true, color: MUTED, charSpacing: 2 });
+  s.addText("THEATRE · ALMATY REGION, KAZAKHSTAN (MOUNTAINOUS)", { x: mx + 0.2, y: my + 0.14, w: 6.6, h: 0.3, isTextBox: true, margin: 0, fontFace: HF, fontSize: 10, bold: true, color: MUTED, charSpacing: 2 });
   // threat rings
   s.addShape(p.ShapeType.ellipse, { x: mx + 3.0, y: my + 1.3, w: 2.6, h: 2.6, fill: { color: RED, transparency: 82 }, line: { color: RED, width: 1.5 } });
   s.addShape(p.ShapeType.ellipse, { x: mx + 1.0, y: my + 3.3, w: 1.4, h: 1.4, fill: { color: RED, transparency: 82 }, line: { color: RED, width: 1.5 } });
@@ -228,6 +228,33 @@ function dot(s, x, y, color, d = 0.16) {
     s.addText(r[1], { x: 11.0, y, w: 1.2, h: 0.35, isTextBox: true, margin: 0, align: "right", fontFace: HF, fontSize: 13, bold: true, color: r[2] });
   });
   s.addText("Constraints enforced: flight time · fuel · altitude band (100–3000 m; altitude scales radar exposure)", { x: 0.9, y: 7.0, w: 11.5, h: 0.35, isTextBox: true, margin: 0, fontFace: BF, fontSize: 11, italic: true, color: MUTED });
+})();
+
+// ============ SLIDE 6b — ADVANCED CAPABILITIES ============
+(() => {
+  const s = p.addSlide(); bg(s);
+  eyebrow(s, "Beyond the baseline", 0.9, 0.6);
+  s.addText("Advanced capabilities", { x: 0.85, y: 0.95, w: 11.8, h: 0.8, isTextBox: true, margin: 0, fontFace: HF, fontSize: 34, bold: true, color: TEXT });
+
+  const caps = [
+    ["Terrain masking", "Real-relief DEM + radar line-of-sight viewsheds — the UAV hides behind ridges", GREEN, "LOS"],
+    ["3D nap-of-earth", "Altitude is optimised (200 / 700 / 1500 m AGL); fly low for cover, climb only when needed", ACC, "3D"],
+    ["Survival probability", "Cumulative P(detected) from a hazard-rate model — 0.70 low vs 0.89 exposed", AMBER, "P"],
+    ["Pareto trade-offs", "The full time-vs-detection front, not three presets — operator picks the point", ACC, "◆"],
+    ["Robust planning", "Optimise against the worst case of current + 6-min ML forecast", GREEN, "±"],
+    ["Mission builder", "Click the map to place start, objective and waypoints", AMBER, "+"],
+  ];
+  caps.forEach((c, i) => {
+    const x = 0.9 + (i % 3) * 3.9;
+    const y = 2.1 + Math.floor(i / 3) * 2.35;
+    card(s, x, y, 3.6, 2.05);
+    s.addShape(p.ShapeType.ellipse, { x: x + 0.3, y: y + 0.28, w: 0.62, h: 0.62, fill: { color: c[2] } });
+    s.addText(c[3], { x: x + 0.3, y: y + 0.28, w: 0.62, h: 0.62, isTextBox: true, margin: 0, align: "center", valign: "middle", fontFace: HF, fontSize: 15, bold: true, color: "0B1220" });
+    s.addText(c[0], { x: x + 1.05, y: y + 0.34, w: 2.4, h: 0.5, isTextBox: true, margin: 0, fontFace: HF, fontSize: 16, bold: true, color: TEXT });
+    s.addText(c[1], { x: x + 0.3, y: y + 1.05, w: 3.05, h: 0.9, isTextBox: true, margin: 0, fontFace: BF, fontSize: 12.5, color: MUTED });
+  });
+  s.addText("All within the brief's objective — route optimisation under weather & air-defense — and validated by 27 tests.",
+    { x: 0.9, y: 6.95, w: 11.5, h: 0.35, isTextBox: true, margin: 0, fontFace: BF, fontSize: 12, italic: true, color: ACC });
 })();
 
 // ============ SLIDE 7 — ARCHITECTURE & SECURITY ============
@@ -273,9 +300,9 @@ function dot(s, x, y, color, d = 0.16) {
   const grid = [
     ["Prediction accuracy", "-39% weather RMSE · +22 pts AD (AUC 0.79)", GREEN],
     ["Route efficiency", "time / fuel / risk per route; detours keep risk ~7%", ACC],
-    ["Innovation", "adaptive D* Lite + ML pre-emptive avoidance · 10.9×", AMBER],
-    ["User interface", "live command-center dashboard, one command", ACC],
-    ["Documentation", "README + architecture doc + 21 passing tests", GREEN],
+    ["Innovation", "D* Lite + terrain-masking + 3D NOE + Pareto + robust", AMBER],
+    ["User interface", "live dashboard + click-to-place mission builder", ACC],
+    ["Documentation", "README + architecture doc + 27 passing tests", GREEN],
     ["Scalability", "stateless API · vectorized · O(cells) optimizer", ACC],
   ];
   grid.forEach((g, i) => {
