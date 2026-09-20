@@ -34,8 +34,9 @@ class CostField:
         self.weather = weather
         self.detect = detection_field(ad_sites, tick, uav_alt_m, weather["visibility_km"])
         self.hazard = weather_hazard(weather)
-        # Combined "danger" for display / heatmaps.
-        self.danger = np.clip(0.7 * self.detect + 0.3 * self.hazard, 0, 1)
+        # Combined "danger" for display / heatmaps (weather hazard weighted so
+        # storms are visible on the map, not just radar threats).
+        self.danger = np.clip(0.75 * self.detect + 0.6 * self.hazard, 0, 1)
 
     def cell_risk(self, cell: tuple[int, int]) -> float:
         return float(self.detect[cell])
@@ -69,7 +70,7 @@ class CostField:
 
         risk = 0.5 * (self.detect[a] + self.detect[b])
         hazard = 0.5 * (self.hazard[a] + self.hazard[b])
-        risk_term = w_safety * (risk * risk) * 50.0 + w_safety * hazard * 5.0
+        risk_term = w_safety * (risk * risk) * 50.0 + w_safety * (hazard ** 2) * 30.0
         time_term = w_time * (t_h * 60.0)
         fuel_term = w_fuel * fuel
         return risk_term + time_term + fuel_term
@@ -100,7 +101,7 @@ class CostField:
 
         # Normalise components to comparable scales.
         # risk in 0..1 already; scale up so w_safety=1 dominates dangerous cells.
-        risk_term = weights.safety * (risk ** 2) * 50.0 + weights.safety * hazard * 5.0
+        risk_term = weights.safety * (risk ** 2) * 50.0 + weights.safety * (hazard ** 2) * 30.0
         time_term = weights.time * (t_h * 60.0)   # minutes
         fuel_term = weights.fuel * fuel
 

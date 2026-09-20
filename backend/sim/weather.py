@@ -49,6 +49,29 @@ class WeatherField:
 
         self.tick = 0
 
+    def add_storm_band(self, row_frac: float, col_lo_frac: float, col_hi_frac: float,
+                       half_width_frac: float = 0.08, intensity: float = 1.0) -> None:
+        """Stamp a strong, localized storm band (high precip, low visibility, gusty
+        wind) across part of the grid, leaving the rest as a clear corridor. Used
+        to give the storm scenario a weather feature the route visibly detours
+        around. The band advects with the wind like the rest of the field."""
+        n = self.n
+        rows, cols = np.meshgrid(np.arange(n), np.arange(n), indexing="ij")
+        r0 = row_frac * n
+        c_lo, c_hi = col_lo_frac * n, col_hi_frac * n
+        hw = half_width_frac * n
+        # Gaussian across rows, hard cutoff outside the column span (the corridor).
+        band = np.exp(-((rows - r0) ** 2) / (2 * hw ** 2))
+        band = np.where((cols >= c_lo) & (cols <= c_hi), band, 0.0)
+        band *= intensity
+        self.precip = np.clip(self.precip + band, 0, 1)
+        self.visibility_km = np.clip(self.visibility_km - band * 9.0, 0.3, 12.0)
+        # Strong crosswind gust front (perpendicular to a SW->NE track): it raises
+        # the wind hazard sharply without giving a tail/head-wind ground-speed
+        # bias, so the band is costly purely as a hazard and the route detours.
+        self.wind_u = self.wind_u + band * 42.0
+        self.wind_v = self.wind_v - band * 42.0
+
     def step(self, dt_min: float = 2.0) -> None:
         """Advance the weather one tick by advecting fields along the wind."""
         self.tick += 1

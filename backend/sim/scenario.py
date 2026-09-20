@@ -38,19 +38,24 @@ def _site(id_, fr_lat, fr_lon, t: ADType, rng, power=1.0, schedule=None) -> ADSi
 def build_scenario(scenario_id: str) -> Scenario:
     """Factory for the demo presets. Site positions are fractions of the box."""
     if scenario_id == "clear":
+        # Baseline: calm weather, SAMs well off the direct corridor -> a clean,
+        # near-straight low-risk route.
         weather = WeatherField(seed=1, base_wind=(15.0, 5.0), storminess=0.05)
         sites = [
-            _site("SAM-Alpha", 0.35, 0.30, ADType.medium_range, 40.0, power=1.0),
-            _site("SAM-Bravo", 0.70, 0.75, ADType.short_range, 15.0, power=1.0),
+            _site("SAM-Alpha", 0.80, 0.20, ADType.medium_range, 30.0, power=1.0),
+            _site("SAM-Bravo", 0.20, 0.80, ADType.short_range, 15.0, power=1.0),
         ]
         return Scenario(scenario_id, weather, sites)
 
     if scenario_id == "storm_front":
-        # Strong wind pushing a precipitation front across the map.
-        weather = WeatherField(seed=7, base_wind=(55.0, 20.0), storminess=0.75)
+        # A localized precipitation band cuts across the map leaving a western
+        # corridor -> the route detours around the weather (not the SAMs). Strong
+        # wind advects the band over time, so the route shifts as it moves.
+        weather = WeatherField(seed=7, base_wind=(12.0, -18.0), storminess=0.12)
+        weather.add_storm_band(row_frac=0.55, col_lo_frac=0.28, col_hi_frac=1.0,
+                               half_width_frac=0.09, intensity=1.0)
         sites = [
-            _site("SAM-Alpha", 0.30, 0.40, ADType.medium_range, 40.0, power=1.0),
-            _site("SAM-Charlie", 0.55, 0.20, ADType.long_range, 120.0, power=0.8),
+            _site("SAM-Charlie", 0.28, 0.72, ADType.short_range, 15.0, power=1.0),
         ]
         return Scenario(scenario_id, weather, sites)
 
