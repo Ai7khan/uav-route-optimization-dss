@@ -12,17 +12,17 @@ from dataclasses import dataclass
 # --- Geographic domain (fictional area of operations) -----------------------
 # Roughly 1 degree of latitude ~= 111 km. We use a 1 deg x 1 deg box so that
 # with GRID_N = 100 each cell is ~1.1 km across (fine enough for a demo).
-# Theatre: Almaty region, south-east Kazakhstan.
-LAT_MIN = 43.0
-LAT_MAX = 44.0
-LON_MIN = 76.5
-LON_MAX = 77.5
+# Theatre: Astana (Nur-Sultan) region, north-central Kazakhstan.
+LAT_MIN = 50.7
+LAT_MAX = 51.7
+LON_MIN = 71.0
+LON_MAX = 72.0
 
 GRID_N = 100  # grid resolution (GRID_N x GRID_N cells)
 
 # Approx km per degree at this latitude (used for distances / speeds).
 KM_PER_DEG_LAT = 111.0
-KM_PER_DEG_LON = 111.0 * 0.7254  # cos(43.5 deg)
+KM_PER_DEG_LON = 111.0 * 0.6266  # cos(51.2 deg)
 
 
 @dataclass(frozen=True)

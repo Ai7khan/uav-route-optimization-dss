@@ -5,7 +5,7 @@ It is the "principles of operation" deliverable required by the brief (§8, §9)
 
 ## 1. Coordinate model
 
-The theatre is a fixed lat/lon bounding box (43–44°N, 76.5–77.5°E — the Almaty
+The theatre is a fixed lat/lon bounding box (50.7–51.7°N, 71–72°E — the Astana
 region of Kazakhstan) discretised into a 100×100 grid (~1.1 km per cell). Every layer — weather, risk, the optimizer graph —
 shares this grid (`backend/config.py: GridSpec`). Helpers convert lat/lon ↔ cell and
 compute planar inter-cell distances in km.

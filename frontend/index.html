@@ -135,7 +135,7 @@ function H(){ return {"Content-Type":"application/json","Authorization":"Bearer 
 function weights(){ return {safety:+safety.value, time:+time.value, fuel:+fuel.value}; }
 
 // --- map ---
-const map = L.map("map",{zoomControl:true}).setView([43.5,77.0],10);
+const map = L.map("map",{zoomControl:true}).setView([51.2,71.5],10);
 let _fitted=false;
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
   {attribution:"© OpenStreetMap",maxZoom:19}).addTo(map);
